@@ -1,0 +1,44 @@
+name: security
+on: [push, pull_request]
+
+# Режим попереджень: кожна перевірка не блокує злиття (continue-on-error)
+jobs:
+  semgrep:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - run: pipx run semgrep scan --config p/python --metrics=off --error .
+
+  pip-audit:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - run: pipx run pip-audit -r requirements.txt
+
+  gitleaks:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks git /repo --no-banner -v
+
+  zap-baseline:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Start Juice Shop
+        run: |
+          docker run -d --name juice -p 3000:3000 bkimminich/juice-shop
+          for i in $(seq 1 60); do curl -sf http://localhost:3000 >/dev/null && break; sleep 2; done
+      - name: ZAP baseline
+        run: |
+          mkdir zap-out && chmod 777 zap-out
+          docker run --rm --network host -v "$PWD/zap-out:/zap/wrk:rw" ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t http://localhost:3000 -r zap.html -I
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: zap-report
+          path: zap-out/zap.html
