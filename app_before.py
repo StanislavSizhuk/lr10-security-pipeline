@@ -1,7 +1,7 @@
 import os, sys, time, jwt
 from flask import Flask, request, jsonify
 
-KEY = "lab7-secret-key-0123456789abcdef"
+KEY = os.environ["JWT_KEY"]
 MODE = sys.argv[1]            # naive | strict
 PORT = int(sys.argv[2])
 app = Flask(__name__)
